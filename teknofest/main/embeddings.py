@@ -10,7 +10,7 @@ load_dotenv()
 class Embeddings:
     def __init__(self) -> None:
         self.pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
-        index_name = "test"  # os.getenv("PINECONE_INDEX_NAME") or "DEFAULT_INDEX"
+        index_name = os.getenv("PINECONE_INDEX_NAME") or "DEFAULT_INDEX"
         self.index = self.__get_index(index_name=index_name, pc=self.pc)
         self.model = SentenceTransformer(os.getenv("EMBEDDING_MODEL"))
         self.__create_table_embedding()
@@ -41,11 +41,6 @@ class Embeddings:
 
         return schema_dict
 
-    def __embedding_exists(self, embedding_id: str) -> bool:
-        # Implement this method to check if the embedding already exists in the index
-        result = self.index.query(ids=[embedding_id])
-        return len(result) > 0
-
     def __sanitize_id(self, id: str) -> str:
         # Remove or replace non-ASCII characters
         return id.encode("ascii", "ignore").decode("ascii")
@@ -62,7 +57,7 @@ class Embeddings:
                     [
                         {
                             "id": sanitized_table_id,
-                            "values": table_embedding.tolist(),
+                            "values": table_embedding.tolist(),  # type: ignore
                             "metadata": {"type": "table", "name": table},
                         }
                     ]
@@ -76,7 +71,7 @@ class Embeddings:
                         [
                             {
                                 "id": sanitized_column_id,
-                                "values": col_embedding.tolist(),
+                                "values": col_embedding.tolist(),  # type: ignore
                                 "metadata": {
                                     "type": "column",
                                     "name": column,
@@ -110,6 +105,3 @@ class Embeddings:
                     relevant_tables.add(match_parts[0])
 
         return [{"type": "table", "name": table} for table in relevant_tables]
-
-
-test = Embeddings()
