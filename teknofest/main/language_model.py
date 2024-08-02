@@ -4,9 +4,10 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline  # type: 
 
 class LanguageModel:
     def __init__(self) -> None:
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model, self.tokenizer = self.__get_tokenizer_model("defog/sqlcoder-7b-2")
 
-    def generate_prompt(
+    def __generate_prompt(
         self, question, prompt_file="prompt.md", metadata_file="metadata.sql"
     ):
         with open(prompt_file, "r") as f:
@@ -25,28 +26,27 @@ class LanguageModel:
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
             trust_remote_code=True,
-            torch_dtype=torch.float16,
-            device_map="auto",
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+            device_map="auto" if torch.cuda.is_available() else None,
             use_cache=True,
-        )
+        ).to(self.device)
         return tokenizer, model
 
     def run_inference(
         self, question, prompt_file="prompt.md", metadata_file="metadata.sql"
     ):
-        prompt = self.generate_prompt(question, prompt_file, metadata_file)
+        prompt = self.__generate_prompt(question, prompt_file, metadata_file)
 
-        # make sure the model stops generating at triple ticks
-        # eos_token_id = tokenizer.convert_tokens_to_ids(["```"])[0]
         eos_token_id = self.tokenizer.eos_token_id
         pipe = pipeline(
             "text-generation",
             model=self.model,
             tokenizer=self.tokenizer,
+            device=self.device.index if self.device.type == "cuda" else -1,
             max_new_tokens=300,
             do_sample=False,
-            return_full_text=False,  # added return_full_text parameter to prevent splitting issues with prompt
-            num_beams=5,  # do beam search with 5 beams for high quality results
+            return_full_text=False,
+            num_beams=5,
         )
         generated_query = (
             pipe(
@@ -61,3 +61,11 @@ class LanguageModel:
             + ";"
         )
         return generated_query
+
+
+# Example usage
+if __name__ == "__main__":
+    model = LanguageModel()
+    question = "What is the total revenue for the year 2023?"
+    generated_query = model.run_inference(question)
+    print(generated_query)
