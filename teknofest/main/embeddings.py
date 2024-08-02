@@ -2,6 +2,7 @@ from pinecone import Pinecone, ServerlessSpec, Index  # type: ignore
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
 import os
+from sqlalchemy import create_engine, inspect
 
 load_dotenv()
 
@@ -9,7 +10,7 @@ load_dotenv()
 class Embeddings:
     def __init__(self) -> None:
         self.pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
-        index_name = os.getenv("PINECONE_INDEX_NAME") or "DEFAULT_INDEX"
+        index_name = "test"  # os.getenv("PINECONE_INDEX_NAME") or "DEFAULT_INDEX"
         self.index = self.__get_index(index_name=index_name, pc=self.pc)
         self.model = SentenceTransformer(os.getenv("EMBEDDING_MODEL"))
         self.__create_table_embedding()
@@ -27,93 +28,55 @@ class Embeddings:
                 spec=ServerlessSpec(cloud="aws", region="us-east-1"),
             )
 
-    ## FIXME: GET SQL TABLES DYNAMICALLY
-    ## FIXME: DONT CREATE TABLE EMBEDDINGS EVERY TIME
+    def __get_database_schema(self, connection_string: str) -> dict:
+        engine = create_engine(connection_string)
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+
+        schema_dict = {}
+        for table in tables:
+            columns = inspector.get_columns(table)
+            column_names = [column["name"] for column in columns]
+            schema_dict[table] = column_names
+
+        return schema_dict
+
+    def __embedding_exists(self, embedding_id: str) -> bool:
+        # Implement this method to check if the embedding already exists in the index
+        result = self.index.query(ids=[embedding_id])
+        return len(result) > 0
+
+    def __sanitize_id(self, id: str) -> str:
+        # Remove or replace non-ASCII characters
+        return id.encode("ascii", "ignore").decode("ascii")
+
     def __create_table_embedding(self) -> None:
-        tables = {
-            "employees": ["id", "name", "position", "department_id"],
-            "departments": ["id", "name"],
-            "projects": ["id", "name", "start_date", "end_date", "department_id"],
-            "salaries": ["id", "employee_id", "amount", "payment_date"],
-            "clients": ["id", "name", "contact_email", "phone_number"],
-            "invoices": ["id", "client_id", "issue_date", "due_date", "amount"],
-            "meetings": ["id", "title", "meeting_date", "location", "department_id"],
-            "tasks": ["id", "project_id", "description", "assigned_to", "due_date"],
-            "reviews": ["id", "employee_id", "review_date", "rating", "comments"],
-            "feedback": ["id", "employee_id", "feedback_date", "feedback_text"],
-            "events": ["id", "name", "event_date", "location", "department_id"],
-            "trainings": ["id", "title", "training_date", "duration", "instructor"],
-            "attendance": ["id", "employee_id", "date", "status"],
-            "assets": ["id", "name", "description", "purchase_date", "department_id"],
-            "contracts": ["id", "client_id", "start_date", "end_date", "details"],
-            "bonuses": ["id", "employee_id", "amount", "date_awarded"],
-            "promotions": ["id", "employee_id", "new_position", "promotion_date"],
-            "vacations": ["id", "employee_id", "start_date", "end_date", "status"],
-            "leaves": ["id", "employee_id", "leave_type", "start_date", "end_date"],
-            "benefits": ["id", "employee_id", "benefit_type", "start_date", "end_date"],
-            "complaints": ["id", "employee_id", "complaint_date", "description"],
-            "equipment": ["id", "name", "department_id", "acquisition_date"],
-            "shifts": ["id", "employee_id", "shift_date", "shift_start", "shift_end"],
-            "evaluations": [
-                "id",
-                "employee_id",
-                "evaluation_date",
-                "score",
-                "comments",
-            ],
-            "work_orders": ["id", "task_id", "employee_id", "start_date", "end_date"],
-            "suppliers": [
-                "id",
-                "name",
-                "contact_name",
-                "contact_email",
-                "phone_number",
-            ],
-            "orders": ["id", "supplier_id", "order_date", "delivery_date", "status"],
-            "deliveries": ["id", "order_id", "delivery_date", "status"],
-            "inventories": ["id", "product_id", "quantity", "last_updated"],
-            "products": ["id", "name", "category", "price", "stock_quantity"],
-            "categories": ["id", "name", "description"],
-            "logs": ["id", "employee_id", "log_date", "activity"],
-            "achievements": ["id", "employee_id", "achievement_date", "description"],
-            "certifications": [
-                "id",
-                "employee_id",
-                "certification_name",
-                "date_awarded",
-            ],
-            "news": ["id", "title", "content", "publish_date", "author"],
-            "policies": ["id", "name", "content", "effective_date", "department_id"],
-            "campaigns": ["id", "name", "start_date", "end_date", "department_id"],
-            "budgets": ["id", "department_id", "amount", "fiscal_year"],
-            "strategies": ["id", "name", "description", "start_date", "end_date"],
-            "reports": ["id", "title", "content", "report_date", "author"],
-            "audits": ["id", "department_id", "audit_date", "auditor", "findings"],
-        }
+        database_uri = os.getenv("DATABASE_URI") or ""
+        tables = self.__get_database_schema(database_uri)
 
         for table, columns in tables.items():
-            table_id = f"{table}"
-            if not self.__embedding_exists(table_id):
+            sanitized_table_id = self.__sanitize_id(table)
+            if not self.__embedding_exists(sanitized_table_id):
                 table_embedding = self.model.encode(table)
                 self.index.upsert(
                     [
                         {
-                            "id": table_id,
-                            "values": table_embedding.tolist(),  # type: ignore
+                            "id": sanitized_table_id,
+                            "values": table_embedding.tolist(),
                             "metadata": {"type": "table", "name": table},
                         }
                     ]
                 )
 
             for column in columns:
-                column_id = f"{table}.{column}"
-                if not self.__embedding_exists(column_id):
+                sanitized_column_id = self.__sanitize_id(f"{table}.{column}")
+                if not self.__embedding_exists(sanitized_column_id):
                     col_embedding = self.model.encode(column)
                     self.index.upsert(
                         [
                             {
-                                "id": column_id,
-                                "values": col_embedding.tolist(),  # type: ignore
+                                "id": sanitized_column_id,
+                                "values": col_embedding.tolist(),
                                 "metadata": {
                                     "type": "column",
                                     "name": column,
@@ -147,3 +110,6 @@ class Embeddings:
                     relevant_tables.add(match_parts[0])
 
         return [{"type": "table", "name": table} for table in relevant_tables]
+
+
+test = Embeddings()
