@@ -8,20 +8,17 @@ class LanguageModel:
         self.model, self.tokenizer = self.__get_tokenizer_model("defog/sqlcoder-7b-2")
 
     def __generate_prompt(
-        self, question, prompt_file="prompt.md", metadata_file="metadata.sql"
+        self, question, metadata_string: str, prompt_file="prompt.md"
     ):
         with open(prompt_file, "r") as f:
             prompt = f.read()
 
-        with open(metadata_file, "r") as f:
-            table_metadata_string = f.read()
-
         prompt = prompt.format(
-            user_question=question, table_metadata_string=table_metadata_string
+            user_question=question, table_metadata_string=metadata_string
         )
         return prompt
 
-    def __get_tokenizer_model(self, model_name):
+    def __get_tokenizer_model(self, model_name: str):
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
@@ -32,10 +29,8 @@ class LanguageModel:
         ).to(self.device)
         return tokenizer, model
 
-    def run_inference(
-        self, question, prompt_file="prompt.md", metadata_file="metadata.sql"
-    ):
-        prompt = self.__generate_prompt(question, prompt_file, metadata_file)
+    def run_inference(self, question, metada_string: str, prompt_file="prompt.md"):
+        prompt = self.__generate_prompt(question, prompt_file, metada_string)
 
         eos_token_id = self.tokenizer.eos_token_id
         pipe = pipeline(
@@ -61,11 +56,3 @@ class LanguageModel:
             + ";"
         )
         return generated_query
-
-
-# Example usage
-if __name__ == "__main__":
-    model = LanguageModel()
-    question = "What is the total revenue for the year 2023?"
-    generated_query = model.run_inference(question)
-    print(generated_query)
