@@ -1,5 +1,5 @@
 import os
-import pandas as pd
+import pandas as pd  # type: ignore
 from sqlalchemy import create_engine
 
 
