@@ -16,13 +16,3 @@ def xlsx_to_postgresql(file_path, db_uri):
         print(
             f"Data from sheet '{sheet_name}' has been successfully written to table '{sheet_name}' in the PostgreSQL database."
         )
-
-
-if __name__ == "__main__":
-    # File path of the Excel file
-    file_path = "/Users/ladka6/Projects/teknofest-be/teknofest/data/2023-kutuphane-ve-muzeler-mudurlugu-okuyucu-istatistikleri.xlsx"
-
-    # PostgreSQL database URI
-    db_uri = "postgresql://postgres:postgres@127.0.0.1:5432/postgres"
-
-    xlsx_to_postgresql(file_path, db_uri)

@@ -1,8 +1,15 @@
 import gradio as gr  # type: ignore
+from teknofest.scripts.csv_to_sql import csv_to_postgresql
 from transformers import pipeline  # type: ignore
 from teknofest.main.embeddings import Embeddings
 from teknofest.scripts import get_relevent_schema
 from teknofest.main.language_model import LanguageModel
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+csv_to_postgresql("teknofest/data", os.getenv("DB_URI"))
 
 pipe = pipeline("translation", model="Helsinki-NLP/opus-mt-tc-big-tr-en")
 
