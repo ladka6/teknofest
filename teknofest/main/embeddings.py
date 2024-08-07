@@ -46,7 +46,7 @@ class Embeddings:
         return id.encode("ascii", "ignore").decode("ascii")
 
     def __create_table_embedding(self) -> None:
-        database_uri = os.getenv("DATABASE_URI") or ""
+        database_uri = os.getenv("DB_URI") or ""
         tables = self.__get_database_schema(database_uri)
 
         for table, columns in tables.items():

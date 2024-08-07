@@ -5,7 +5,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline  # type: 
 class LanguageModel:
     def __init__(self) -> None:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model, self.tokenizer = self.__get_tokenizer_model("defog/sqlcoder-7b-2")
+        self.tokenizer, self.model = self.__get_tokenizer_model("defog/sqlcoder-7b-2")
 
     def __generate_prompt(
         self, question, metadata_string: str, prompt_file="prompt.md"
@@ -30,7 +30,9 @@ class LanguageModel:
         return tokenizer, model
 
     def run_inference(self, question, metada_string: str, prompt_file="prompt.md"):
-        prompt = self.__generate_prompt(question, prompt_file, metada_string)
+        prompt = self.__generate_prompt(
+            question=question, metadata_string=metada_string
+        )
 
         eos_token_id = self.tokenizer.eos_token_id
         pipe = pipeline(
