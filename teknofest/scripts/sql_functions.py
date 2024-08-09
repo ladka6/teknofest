@@ -2,6 +2,8 @@ import psycopg2  # type: ignore
 from typing import List
 from dotenv import load_dotenv
 import os
+from sqlalchemy import inspect, create_engine
+
 
 load_dotenv()
 
@@ -63,3 +65,22 @@ def get_relevant_schemas(tables_list: List[str]):
             cursor.close()
             connection.close()
     return create_table_statements
+
+
+def get_table_metada() -> str:
+    return_str = ""
+    db_uri = os.getenv("DB_URI") or ""
+    engine = create_engine(db_uri)
+    inspector = inspect(engine)
+
+    for tn in inspector.get_table_names():
+        create_statement = f"CREATE TABLE {tn} (\n"
+        for column in inspector.get_columns(tn):
+            column_name = column["name"]
+            data_type = column["type"]
+
+            create_statement += f"  {column_name} {data_type},\n"
+        create_statement = create_statement.rstrip(",\n") + "\n);\n\n"
+        return_str += create_statement
+
+    return return_str
